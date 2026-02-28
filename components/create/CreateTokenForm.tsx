@@ -15,7 +15,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { uploadToIPFS, createTokenTransaction, sendSignedTransaction } from "@/lib/pumpfun";
+import {
+  uploadToIPFS,
+  createTokenTransaction,
+  buildBuyTransaction,
+  sendSignedTransaction,
+} from "@/lib/pumpfun";
 import { PUMPFUN_TOKEN_URL } from "@/lib/constants";
 
 export default function CreateTokenForm() {
@@ -70,6 +75,8 @@ export default function CreateTokenForm() {
       return;
     }
 
+    const initialBuy = parseFloat(form.initialBuy) || 0;
+
     setLoading(true);
     try {
       // Step 1: Upload to IPFS
@@ -87,11 +94,11 @@ export default function CreateTokenForm() {
         imageFile
       );
 
-      // Step 2: Build transaction
-      setStep("Building transaction...");
-      toast.info("Building transaction...");
+      // Step 2: Create token (always with amount: 0 to avoid overflow error 6024)
+      setStep("Building create transaction...");
+      toast.info("Building create transaction...");
       const mintKeypair = Keypair.generate();
-      const tx = await createTokenTransaction(
+      const createTx = await createTokenTransaction(
         publicKey.toBase58(),
         metadataUri,
         {
@@ -99,28 +106,46 @@ export default function CreateTokenForm() {
           symbol: form.symbol.trim().toUpperCase(),
           description: form.description.trim(),
         },
-        mintKeypair,
-        parseFloat(form.initialBuy) || 0,
-        100,
-        0.0005
+        mintKeypair
       );
 
-      // Step 3: Sign — mint keypair signs first, then wallet
+      // Step 3: Sign create tx — mint keypair signs first, then wallet
       setStep("Waiting for wallet signature...");
-      tx.sign([mintKeypair]);
-      const signedTx = await signTransaction(tx);
+      createTx.sign([mintKeypair]);
+      const signedCreateTx = await signTransaction(createTx);
 
-      // Step 4: Send
-      setStep("Sending transaction...");
-      toast.info("Sending transaction...");
-      const signature = await sendSignedTransaction(signedTx);
+      // Step 4: Send create tx
+      setStep("Creating token on-chain...");
+      toast.info("Creating token on-chain...");
+      await sendSignedTransaction(signedCreateTx);
 
-      setCreatedMint(mintKeypair.publicKey.toBase58());
-      toast.success(`Token created! Tx: ${signature.slice(0, 8)}...`);
+      const mintAddress = mintKeypair.publicKey.toBase58();
+
+      // Step 5: If initial buy > 0, do a separate buy transaction
+      if (initialBuy > 0) {
+        setStep("Building dev buy transaction...");
+        toast.info("Building dev buy transaction...");
+        const buyTx = await buildBuyTransaction(
+          publicKey.toBase58(),
+          mintAddress,
+          initialBuy,
+          100, // 100% slippage — you're the first buyer
+          0.0005
+        );
+
+        setStep("Waiting for buy signature...");
+        const signedBuyTx = await signTransaction(buyTx);
+
+        setStep("Sending dev buy...");
+        toast.info("Sending dev buy...");
+        await sendSignedTransaction(signedBuyTx);
+      }
+
+      setCreatedMint(mintAddress);
+      toast.success("Token launched successfully!");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Token creation failed";
       toast.error(message);
-      // Form data is preserved on error — user can retry without re-entering
     } finally {
       setLoading(false);
       setStep("");

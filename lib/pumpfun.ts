@@ -51,47 +51,21 @@ export async function uploadToIPFS(
   return data.metadataUri;
 }
 
-/**
- * Build a create-token transaction via PumpPortal
- */
-export async function createTokenTransaction(
-  publicKey: string,
-  metadataUri: string,
-  metadata: TokenMetadata,
-  mintKeypair: Keypair,
-  initialBuyAmount: number,
-  slippage: number,
-  priorityFee: number
-): Promise<VersionedTransaction> {
+async function fetchTransaction(body: Record<string, unknown>): Promise<VersionedTransaction> {
   const response = await fetch("/api/trade", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      publicKey,
-      action: "create",
-      tokenMetadata: {
-        name: metadata.name,
-        symbol: metadata.symbol,
-        uri: metadataUri,
-      },
-      mint: mintKeypair.publicKey.toBase58(),
-      denominatedInSol: "true",
-      amount: initialBuyAmount,
-      slippage,
-      priorityFee,
-      pool: "pump",
-    }),
+    body: JSON.stringify(body),
   });
 
-  // Check for JSON error responses first
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     const err = await response.json();
-    throw new Error(err.error || `Transaction creation failed (${response.status})`);
+    throw new Error(err.error || `API error (${response.status})`);
   }
 
   if (response.status !== 200) {
-    throw new Error(`Transaction creation failed (${response.status})`);
+    throw new Error(`API error (${response.status})`);
   }
 
   const data = await response.arrayBuffer();
@@ -103,44 +77,72 @@ export async function createTokenTransaction(
 }
 
 /**
+ * Build a create-token transaction via PumpPortal.
+ * Always creates with amount: 0 to avoid the on-chain arithmetic overflow
+ * (error 6024) that occurs when combining create + buy in one instruction.
+ */
+export async function createTokenTransaction(
+  publicKey: string,
+  metadataUri: string,
+  metadata: TokenMetadata,
+  mintKeypair: Keypair
+): Promise<VersionedTransaction> {
+  return fetchTransaction({
+    publicKey,
+    action: "create",
+    tokenMetadata: {
+      name: metadata.name,
+      symbol: metadata.symbol,
+      uri: metadataUri,
+    },
+    mint: mintKeypair.publicKey.toBase58(),
+    denominatedInSol: "true",
+    amount: 0,
+    slippage: 10,
+    priorityFee: 0.0005,
+    pool: "pump",
+  });
+}
+
+/**
+ * Build a buy transaction for the initial dev buy (separate from create)
+ */
+export async function buildBuyTransaction(
+  publicKey: string,
+  mint: string,
+  solAmount: number,
+  slippage: number,
+  priorityFee: number
+): Promise<VersionedTransaction> {
+  return fetchTransaction({
+    publicKey,
+    action: "buy",
+    mint,
+    denominatedInSol: "true",
+    amount: solAmount,
+    slippage,
+    priorityFee,
+    pool: "pump",
+  });
+}
+
+/**
  * Build a buy/sell transaction via PumpPortal
  */
 export async function tradeTransaction(
   publicKey: string,
   params: TradeParams
 ): Promise<VersionedTransaction> {
-  const response = await fetch("/api/trade", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      publicKey,
-      action: params.action,
-      mint: params.mint,
-      denominatedInSol: params.denominatedInSol ? "true" : "false",
-      amount: params.amount,
-      slippage: params.slippage,
-      priorityFee: params.priorityFee,
-      pool: "pump",
-    }),
+  return fetchTransaction({
+    publicKey,
+    action: params.action,
+    mint: params.mint,
+    denominatedInSol: params.denominatedInSol ? "true" : "false",
+    amount: params.amount,
+    slippage: params.slippage,
+    priorityFee: params.priorityFee,
+    pool: "pump",
   });
-
-  // Check for JSON error responses first
-  const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    const err = await response.json();
-    throw new Error(err.error || `Trade transaction failed (${response.status})`);
-  }
-
-  if (response.status !== 200) {
-    throw new Error(`Trade transaction failed (${response.status})`);
-  }
-
-  const data = await response.arrayBuffer();
-  if (data.byteLength === 0) {
-    throw new Error("Received empty transaction from PumpPortal");
-  }
-
-  return VersionedTransaction.deserialize(new Uint8Array(data));
 }
 
 /**
@@ -151,7 +153,6 @@ export async function sendSignedTransaction(
 ): Promise<string> {
   const rawTx = signedTx.serialize();
 
-  // Use btoa for browser compatibility instead of Buffer
   const base64Tx =
     typeof Buffer !== "undefined"
       ? Buffer.from(rawTx).toString("base64")
