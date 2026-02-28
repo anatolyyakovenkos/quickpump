@@ -77,9 +77,7 @@ export async function createTokenTransaction(
       mint: mintKeypair.publicKey.toBase58(),
       denominatedInSol: "true",
       amount: initialBuyAmount,
-      // For create+buy, the bonding curve price impact is steep — enforce
-      // minimum 50% slippage to avoid on-chain 6024 (TooMuchSolRequired)
-      slippage: initialBuyAmount > 0 ? Math.max(slippage, 50) : slippage,
+      slippage,
       priorityFee,
       pool: "pump",
     }),

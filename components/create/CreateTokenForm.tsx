@@ -33,8 +33,6 @@ export default function CreateTokenForm() {
     telegram: "",
     website: "",
     initialBuy: "0",
-    slippage: "50",
-    priorityFee: "0.005",
   });
 
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -103,8 +101,8 @@ export default function CreateTokenForm() {
         },
         mintKeypair,
         parseFloat(form.initialBuy) || 0,
-        parseFloat(form.slippage) || 25,
-        parseFloat(form.priorityFee) || 0.005
+        100,
+        0.0005
       );
 
       // Step 3: Sign — mint keypair signs first, then wallet
@@ -162,8 +160,6 @@ export default function CreateTokenForm() {
                   telegram: "",
                   website: "",
                   initialBuy: "0",
-                  slippage: "50",
-                  priorityFee: "0.005",
                 });
                 setImageFile(null);
                 setImagePreview(null);
@@ -289,52 +285,22 @@ export default function CreateTokenForm() {
             </div>
           </div>
 
-          {/* Trading params */}
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="initialBuy">Initial Buy (SOL)</Label>
-              <Input
-                id="initialBuy"
-                type="number"
-                step="0.001"
-                min="0"
-                placeholder="0"
-                value={form.initialBuy}
-                onChange={(e) => updateField("initialBuy", e.target.value)}
-                disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground">
-                0 = no dev buy
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="slippage">Slippage (%)</Label>
-              <Input
-                id="slippage"
-                type="number"
-                step="1"
-                min="1"
-                max="100"
-                value={form.slippage}
-                onChange={(e) => updateField("slippage", e.target.value)}
-                disabled={loading}
-              />
-              <p className="text-xs text-muted-foreground">
-                50%+ recommended for initial buys
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="priorityFee">Priority Fee (SOL)</Label>
-              <Input
-                id="priorityFee"
-                type="number"
-                step="0.001"
-                min="0"
-                value={form.priorityFee}
-                onChange={(e) => updateField("priorityFee", e.target.value)}
-                disabled={loading}
-              />
-            </div>
+          {/* Initial buy */}
+          <div className="space-y-2">
+            <Label htmlFor="initialBuy">Initial Dev Buy (SOL)</Label>
+            <Input
+              id="initialBuy"
+              type="number"
+              step="0.001"
+              min="0"
+              placeholder="0"
+              value={form.initialBuy}
+              onChange={(e) => updateField("initialBuy", e.target.value)}
+              disabled={loading}
+            />
+            <p className="text-xs text-muted-foreground">
+              0 = no dev buy. Amount of SOL to buy your own token with at launch.
+            </p>
           </div>
 
           <Button
