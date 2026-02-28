@@ -1,5 +1,4 @@
 import { Keypair, VersionedTransaction } from "@solana/web3.js";
-import { PUMPPORTAL_API_URL, PUMPFUN_IPFS_URL } from "./constants";
 import { getConnection } from "./solana";
 
 export interface TokenMetadata {
@@ -41,13 +40,14 @@ export async function uploadToIPFS(
   if (metadata.telegram) formData.append("telegram", metadata.telegram);
   if (metadata.website) formData.append("website", metadata.website);
 
-  const response = await fetch(PUMPFUN_IPFS_URL, {
+  const response = await fetch("/api/ipfs", {
     method: "POST",
     body: formData,
   });
 
   if (!response.ok) {
-    throw new Error(`IPFS upload failed: ${response.statusText}`);
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `IPFS upload failed: ${response.statusText}`);
   }
 
   const data = await response.json();
@@ -63,7 +63,7 @@ export async function createTokenTransaction(
   slippage: number,
   priorityFee: number
 ): Promise<VersionedTransaction> {
-  const response = await fetch(PUMPPORTAL_API_URL, {
+  const response = await fetch("/api/trade", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -84,7 +84,8 @@ export async function createTokenTransaction(
   });
 
   if (response.status !== 200) {
-    throw new Error(`Transaction creation failed: ${response.statusText}`);
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `Transaction creation failed: ${response.statusText}`);
   }
 
   const data = await response.arrayBuffer();
@@ -95,7 +96,7 @@ export async function tradeTransaction(
   publicKey: string,
   params: TradeParams
 ): Promise<VersionedTransaction> {
-  const response = await fetch(PUMPPORTAL_API_URL, {
+  const response = await fetch("/api/trade", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -111,7 +112,8 @@ export async function tradeTransaction(
   });
 
   if (response.status !== 200) {
-    throw new Error(`Trade transaction failed: ${response.statusText}`);
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `Trade transaction failed: ${response.statusText}`);
   }
 
   const data = await response.arrayBuffer();
