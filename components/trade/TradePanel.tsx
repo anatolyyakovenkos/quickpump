@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
 import {
   Card,
   CardContent,
@@ -23,8 +24,6 @@ export default function TradePanel() {
   const [mintAddress, setMintAddress] = useState("");
   const [buyAmount, setBuyAmount] = useState("0.1");
   const [sellPercent, setSellPercent] = useState("100");
-  const [slippage, setSlippage] = useState("25");
-  const [priorityFee, setPriorityFee] = useState("0.005");
   const [lastTx, setLastTx] = useState<string | null>(null);
 
   async function handleTrade(action: "buy" | "sell") {
@@ -48,9 +47,9 @@ export default function TradePanel() {
         amount: isBuy
           ? parseFloat(buyAmount) || 0
           : `${parseFloat(sellPercent) || 100}%`,
-        slippage: parseFloat(slippage) || 25,
+        slippage: 100,
         denominatedInSol: isBuy,
-        priorityFee: parseFloat(priorityFee) || 0.005,
+        priorityFee: 0,
       });
 
       // Sign with deployer keypair — instant, no popup
@@ -107,31 +106,6 @@ export default function TradePanel() {
                 onChange={(e) => setBuyAmount(e.target.value)}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="buy-slippage">Slippage (%)</Label>
-                <Input
-                  id="buy-slippage"
-                  type="number"
-                  step="1"
-                  min="1"
-                  max="50"
-                  value={slippage}
-                  onChange={(e) => setSlippage(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="buy-fee">Priority Fee (SOL)</Label>
-                <Input
-                  id="buy-fee"
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  value={priorityFee}
-                  onChange={(e) => setPriorityFee(e.target.value)}
-                />
-              </div>
-            </div>
             {!publicKey ? (
               <Button
                 type="button"
@@ -180,31 +154,6 @@ export default function TradePanel() {
                     </Button>
                   ))}
                 </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="sell-slippage">Slippage (%)</Label>
-                <Input
-                  id="sell-slippage"
-                  type="number"
-                  step="1"
-                  min="1"
-                  max="50"
-                  value={slippage}
-                  onChange={(e) => setSlippage(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sell-fee">Priority Fee (SOL)</Label>
-                <Input
-                  id="sell-fee"
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  value={priorityFee}
-                  onChange={(e) => setPriorityFee(e.target.value)}
-                />
               </div>
             </div>
             {!publicKey ? (
