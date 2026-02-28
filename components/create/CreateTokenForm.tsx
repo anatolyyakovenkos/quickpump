@@ -2,7 +2,6 @@
 
 import { useState, useRef } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { Keypair } from "@solana/web3.js";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,13 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  uploadToIPFS,
-  createTokenTransaction,
-  buildBuyTransaction,
-  sendSignedTransaction,
-  delay,
-} from "@/lib/pumpfun";
+import { uploadToIPFS, createToken, sendSignedTransaction } from "@/lib/pumpfun";
 import { PUMPFUN_TOKEN_URL } from "@/lib/constants";
 
 export default function CreateTokenForm() {
@@ -80,7 +73,7 @@ export default function CreateTokenForm() {
 
     setLoading(true);
     try {
-      // Step 1: Upload to IPFS
+      // Step 1: Upload metadata to IPFS
       setStep("Uploading metadata to IPFS...");
       toast.info("Uploading metadata to IPFS...");
       const metadataUri = await uploadToIPFS(
@@ -95,58 +88,40 @@ export default function CreateTokenForm() {
         imageFile
       );
 
-      // Step 2: Create token (always with amount: 0 to avoid overflow error 6024)
-      setStep("Building create transaction...");
-      toast.info("Building create transaction...");
-      const mintKeypair = Keypair.generate();
-      const createTx = await createTokenTransaction(
+      // Step 2: Build create transaction (with dev buy included)
+      setStep("Building transaction...");
+      toast.info("Building transaction...");
+      const result = await createToken(
         publicKey.toBase58(),
+        form.name.trim(),
+        form.symbol.trim().toUpperCase(),
         metadataUri,
-        {
-          name: form.name.trim(),
-          symbol: form.symbol.trim().toUpperCase(),
-          description: form.description.trim(),
-        },
-        mintKeypair
+        initialBuy
       );
 
-      // Step 3: Sign create tx — mint keypair signs first, then wallet
-      setStep("Waiting for wallet signature...");
-      createTx.sign([mintKeypair]);
-      const signedCreateTx = await signTransaction(createTx);
+      // Step 3: Sign and send each transaction
+      for (let i = 0; i < result.transactions.length; i++) {
+        const txInfo = result.transactions[i];
+        const label = result.transactions.length > 1
+          ? `(${i + 1}/${result.transactions.length})`
+          : "";
 
-      // Step 4: Send create tx
-      setStep("Creating token on-chain...");
-      toast.info("Creating token on-chain...");
-      await sendSignedTransaction(signedCreateTx);
+        // Sign with mint keypair if needed
+        if (txInfo.signers.includes("mint")) {
+          txInfo.transaction.sign([result.mintKeypair]);
+        }
 
-      const mintAddress = mintKeypair.publicKey.toBase58();
+        // Sign with wallet
+        setStep(`Waiting for wallet signature ${label}...`);
+        const signedTx = await signTransaction(txInfo.transaction);
 
-      // Step 5: If initial buy > 0, do a separate buy transaction
-      if (initialBuy > 0) {
-        // Wait for the token to be indexed by PumpPortal before buying
-        setStep("Waiting for token to be indexed...");
-        await delay(5000);
-
-        setStep("Building dev buy transaction...");
-        toast.info("Building dev buy transaction...");
-        const buyTx = await buildBuyTransaction(
-          publicKey.toBase58(),
-          mintAddress,
-          initialBuy,
-          100, // 100% slippage — you're the first buyer
-          0.0005
-        );
-
-        setStep("Waiting for buy signature...");
-        const signedBuyTx = await signTransaction(buyTx);
-
-        setStep("Sending dev buy...");
-        toast.info("Sending dev buy...");
-        await sendSignedTransaction(signedBuyTx);
+        // Send
+        setStep(`Sending transaction ${label}...`);
+        toast.info(`Sending transaction ${label}...`);
+        await sendSignedTransaction(signedTx);
       }
 
-      setCreatedMint(mintAddress);
+      setCreatedMint(result.mint);
       toast.success("Token launched successfully!");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Token creation failed";

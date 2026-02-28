@@ -1,4 +1,5 @@
 import { Keypair, VersionedTransaction } from "@solana/web3.js";
+import bs58 from "bs58";
 
 export interface TokenMetadata {
   name: string;
@@ -12,10 +13,19 @@ export interface TokenMetadata {
 export interface TradeParams {
   action: "buy" | "sell";
   mint: string;
-  amount: number | string; // number for buy, number or "100%" for sell
+  amount: number | string;
   slippage: number;
   denominatedInSol: boolean;
   priorityFee: number;
+}
+
+export interface CreateResult {
+  mint: string;
+  transactions: {
+    transaction: VersionedTransaction;
+    signers: string[];
+  }[];
+  mintKeypair: Keypair;
 }
 
 /**
@@ -51,83 +61,60 @@ export async function uploadToIPFS(
   return data.metadataUri;
 }
 
-async function fetchTransaction(body: Record<string, unknown>): Promise<VersionedTransaction> {
-  const response = await fetch("/api/trade", {
+/**
+ * Create a token via PumpDev API (uses pump.fun's new program with create_v2).
+ * Supports create + initial buy in a single transaction.
+ */
+export async function createToken(
+  publicKey: string,
+  name: string,
+  symbol: string,
+  metadataUri: string,
+  buyAmountSol: number
+): Promise<CreateResult> {
+  const body: Record<string, unknown> = {
+    publicKey,
+    name,
+    symbol,
+    uri: metadataUri,
+  };
+
+  if (buyAmountSol > 0) {
+    body.buyAmountSol = buyAmountSol;
+    body.slippage = 30;
+  }
+
+  body.priorityFee = 0.0005;
+
+  const response = await fetch("/api/create-token", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
 
-  const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    const err = await response.json();
-    throw new Error(err.error || `API error (${response.status})`);
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `Token creation failed (${response.status})`);
   }
 
-  if (response.status !== 200) {
-    throw new Error(`API error (${response.status})`);
+  const data = await response.json();
+
+  if (!data.mint) {
+    throw new Error("No mint address returned from API");
   }
 
-  const data = await response.arrayBuffer();
-  if (data.byteLength === 0) {
-    throw new Error("Received empty transaction from PumpPortal");
-  }
+  // Reconstruct the mint keypair from the returned secret key
+  const mintKeypair = Keypair.fromSecretKey(bs58.decode(data.mintSecretKey));
 
-  return VersionedTransaction.deserialize(new Uint8Array(data));
-}
+  // Deserialize transactions
+  const transactions = (data.transactions || []).map(
+    (txInfo: { transaction: string; signers: string[] }) => ({
+      transaction: VersionedTransaction.deserialize(bs58.decode(txInfo.transaction)),
+      signers: txInfo.signers || [],
+    })
+  );
 
-/**
- * Build a create-token transaction via PumpPortal.
- * Always creates with amount: 0 to avoid the on-chain arithmetic overflow
- * (error 6024) that occurs when combining create + buy in one instruction.
- */
-export async function createTokenTransaction(
-  publicKey: string,
-  metadataUri: string,
-  metadata: TokenMetadata,
-  mintKeypair: Keypair
-): Promise<VersionedTransaction> {
-  return fetchTransaction({
-    publicKey,
-    action: "create",
-    tokenMetadata: {
-      name: metadata.name,
-      symbol: metadata.symbol,
-      uri: metadataUri,
-    },
-    mint: mintKeypair.publicKey.toBase58(),
-    denominatedInSol: "true",
-    amount: 0,
-    slippage: 10,
-    priorityFee: 0.0005,
-    pool: "pump",
-  });
-}
-
-/**
- * Build a buy transaction for the initial dev buy (separate from create)
- */
-export async function buildBuyTransaction(
-  publicKey: string,
-  mint: string,
-  solAmount: number,
-  slippage: number,
-  priorityFee: number
-): Promise<VersionedTransaction> {
-  return fetchTransaction({
-    publicKey,
-    action: "buy",
-    mint,
-    denominatedInSol: "true",
-    amount: solAmount,
-    slippage,
-    priorityFee,
-    pool: "auto",
-  });
-}
-
-export function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return { mint: data.mint, transactions, mintKeypair };
 }
 
 /**
@@ -137,16 +124,37 @@ export async function tradeTransaction(
   publicKey: string,
   params: TradeParams
 ): Promise<VersionedTransaction> {
-  return fetchTransaction({
-    publicKey,
-    action: params.action,
-    mint: params.mint,
-    denominatedInSol: params.denominatedInSol ? "true" : "false",
-    amount: params.amount,
-    slippage: params.slippage,
-    priorityFee: params.priorityFee,
-    pool: "pump",
+  const response = await fetch("/api/trade", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      publicKey,
+      action: params.action,
+      mint: params.mint,
+      denominatedInSol: params.denominatedInSol ? "true" : "false",
+      amount: params.amount,
+      slippage: params.slippage,
+      priorityFee: params.priorityFee,
+      pool: "auto",
+    }),
   });
+
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    const err = await response.json();
+    throw new Error(err.error || `Trade transaction failed (${response.status})`);
+  }
+
+  if (response.status !== 200) {
+    throw new Error(`Trade transaction failed (${response.status})`);
+  }
+
+  const data = await response.arrayBuffer();
+  if (data.byteLength === 0) {
+    throw new Error("Received empty transaction from API");
+  }
+
+  return VersionedTransaction.deserialize(new Uint8Array(data));
 }
 
 /**
