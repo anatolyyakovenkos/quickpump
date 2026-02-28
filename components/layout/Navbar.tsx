@@ -1,50 +1,47 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import { LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { useState } from "react";
+import { useDeployer } from "@/components/providers/DeployerProvider";
 import { shortenAddress } from "@/lib/solana";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export default function Navbar() {
-  const { publicKey } = useWallet();
-  const { connection } = useConnection();
-  const [balance, setBalance] = useState<number | null>(null);
+  const { publicKey, balance, generate, clear, exportKey } = useDeployer();
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    if (!publicKey) {
-      setBalance(null);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function fetchBalance() {
-      try {
-        const bal = await connection.getBalance(publicKey!);
-        if (!cancelled) setBalance(bal / LAMPORTS_PER_SOL);
-      } catch {
-        if (!cancelled) setBalance(null);
-      }
-    }
-
-    fetchBalance();
-    const id = setInterval(fetchBalance, 15000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [publicKey, connection]);
+  const [showMenu, setShowMenu] = useState(false);
 
   const navLinks = [
     { href: "/create", label: "Create" },
     { href: "/trade", label: "Trade" },
     { href: "/dashboard", label: "Dashboard" },
   ];
+
+  function handleCopyAddress() {
+    if (publicKey) {
+      navigator.clipboard.writeText(publicKey.toBase58());
+      toast.success("Address copied to clipboard");
+    }
+  }
+
+  function handleExportKey() {
+    const key = exportKey();
+    if (key) {
+      navigator.clipboard.writeText(key);
+      toast.success("Private key copied to clipboard");
+    }
+    setShowMenu(false);
+  }
+
+  function handleReset() {
+    if (confirm("This will delete your deployer wallet. Make sure you have exported the private key. Continue?")) {
+      clear();
+      toast.info("Deployer wallet removed");
+    }
+    setShowMenu(false);
+  }
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
@@ -67,24 +64,63 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center gap-3">
-          {publicKey && balance !== null && (
-            <Badge variant="secondary" className="hidden sm:inline-flex">
-              {balance.toFixed(3)} SOL
-            </Badge>
+          {publicKey ? (
+            <>
+              {balance !== null && (
+                <Badge variant="secondary" className="hidden sm:inline-flex">
+                  {balance.toFixed(3)} SOL
+                </Badge>
+              )}
+              <Badge
+                variant="outline"
+                className="hidden sm:inline-flex font-mono text-xs cursor-pointer"
+                onClick={handleCopyAddress}
+                title="Click to copy address"
+              >
+                {shortenAddress(publicKey.toBase58())}
+              </Badge>
+              <div className="relative">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs"
+                  onClick={() => setShowMenu(!showMenu)}
+                >
+                  Wallet
+                </Button>
+                {showMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-48 rounded-md border border-border bg-background shadow-lg z-50">
+                    <button
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-muted"
+                      onClick={handleCopyAddress}
+                    >
+                      Copy Address
+                    </button>
+                    <button
+                      className="w-full px-4 py-2 text-left text-sm hover:bg-muted"
+                      onClick={handleExportKey}
+                    >
+                      Export Private Key
+                    </button>
+                    <button
+                      className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-muted"
+                      onClick={handleReset}
+                    >
+                      Reset Wallet
+                    </button>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <Button
+              size="sm"
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={generate}
+            >
+              Generate Wallet
+            </Button>
           )}
-          {publicKey && (
-            <Badge variant="outline" className="hidden sm:inline-flex font-mono text-xs">
-              {shortenAddress(publicKey.toBase58())}
-            </Badge>
-          )}
-          <WalletMultiButton
-            style={{
-              backgroundColor: "hsl(142, 71%, 45%)",
-              height: "2.25rem",
-              fontSize: "0.875rem",
-              borderRadius: "0.5rem",
-            }}
-          />
           {/* Mobile menu button */}
           <Button
             variant="ghost"
@@ -124,9 +160,19 @@ export default function Navbar() {
                 {link.label}
               </Link>
             ))}
-            {publicKey && balance !== null && (
-              <div className="mt-2 border-t border-border pt-2 px-3 text-sm text-muted-foreground">
-                Balance: {balance.toFixed(3)} SOL
+            {publicKey && (
+              <div className="mt-2 border-t border-border pt-2 px-3">
+                <p className="font-mono text-xs text-muted-foreground break-all">
+                  {publicKey.toBase58()}
+                </p>
+                {balance !== null && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Balance: {balance.toFixed(3)} SOL
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  Fund this address with SOL to create tokens
+                </p>
               </div>
             )}
           </div>

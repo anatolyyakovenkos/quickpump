@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useDeployer } from "@/components/providers/DeployerProvider";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { uploadToIPFS, createToken, sendSignedTransaction } from "@/lib/pumpfun"
 import { PUMPFUN_TOKEN_URL } from "@/lib/constants";
 
 export default function CreateTokenForm() {
-  const { publicKey, signTransaction } = useWallet();
+  const { keypair, publicKey, generate } = useDeployer();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState("");
@@ -56,8 +56,8 @@ export default function CreateTokenForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    if (!publicKey || !signTransaction) {
-      toast.error("Connect your wallet first");
+    if (!keypair || !publicKey) {
+      toast.error("Generate a deployer wallet first");
       return;
     }
     if (!imageFile) {
@@ -99,15 +99,14 @@ export default function CreateTokenForm() {
         initialBuy
       );
 
-      // Step 3: Sign with mint keypair, then wallet
-      setStep("Waiting for wallet signature...");
-      result.transaction.sign([result.mintKeypair]);
-      const signedTx = await signTransaction(result.transaction);
+      // Step 3: Sign with mint keypair + deployer keypair — instant, no popup
+      setStep("Signing transaction...");
+      result.transaction.sign([result.mintKeypair, keypair]);
 
       // Step 4: Send transaction
       setStep("Sending transaction...");
       toast.info("Sending transaction...");
-      await sendSignedTransaction(signedTx);
+      await sendSignedTransaction(result.transaction);
 
       setCreatedMint(result.mint);
       toast.success("Token launched successfully!");
@@ -296,18 +295,25 @@ export default function CreateTokenForm() {
             </p>
           </div>
 
-          <Button
-            type="submit"
-            size="lg"
-            className="w-full bg-green-600 hover:bg-green-700 text-white"
-            disabled={loading || !publicKey}
-          >
-            {loading
-              ? step || "Creating..."
-              : !publicKey
-                ? "Connect Wallet to Create"
-                : "Create Token"}
-          </Button>
+          {!publicKey ? (
+            <Button
+              type="button"
+              size="lg"
+              className="w-full bg-green-600 hover:bg-green-700 text-white"
+              onClick={generate}
+            >
+              Generate Wallet to Create
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full bg-green-600 hover:bg-green-700 text-white"
+              disabled={loading}
+            >
+              {loading ? step || "Creating..." : "Create Token"}
+            </Button>
+          )}
         </CardContent>
       </Card>
     </form>

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useDeployer } from "@/components/providers/DeployerProvider";
+import { useConnection } from "@solana/wallet-adapter-react";
 import { ConfirmedSignatureInfo } from "@solana/web3.js";
 import {
   Card,
@@ -12,7 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 export default function TxHistory() {
-  const { publicKey } = useWallet();
+  const { publicKey } = useDeployer();
   const { connection } = useConnection();
   const [txns, setTxns] = useState<ConfirmedSignatureInfo[]>([]);
   const [loading, setLoading] = useState(false);

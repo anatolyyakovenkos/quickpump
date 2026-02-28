@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useDeployer } from "@/components/providers/DeployerProvider";
+import { useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import {
   Card,
@@ -19,7 +20,7 @@ interface TokenInfo {
 }
 
 export default function TokenList() {
-  const { publicKey } = useWallet();
+  const { publicKey } = useDeployer();
   const { connection } = useConnection();
   const [tokens, setTokens] = useState<TokenInfo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -70,7 +71,7 @@ export default function TokenList() {
     return (
       <Card>
         <CardContent className="py-12 text-center text-muted-foreground">
-          Connect your wallet to view your tokens.
+          Generate a deployer wallet to view your tokens.
         </CardContent>
       </Card>
     );

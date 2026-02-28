@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useDeployer } from "@/components/providers/DeployerProvider";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { tradeTransaction, sendSignedTransaction } from "@/lib/pumpfun";
 
 export default function TradePanel() {
-  const { publicKey, signTransaction } = useWallet();
+  const { keypair, publicKey, generate } = useDeployer();
   const [loading, setLoading] = useState(false);
   const [mintAddress, setMintAddress] = useState("");
   const [buyAmount, setBuyAmount] = useState("0.1");
@@ -28,8 +28,8 @@ export default function TradePanel() {
   const [lastTx, setLastTx] = useState<string | null>(null);
 
   async function handleTrade(action: "buy" | "sell") {
-    if (!publicKey || !signTransaction) {
-      toast.error("Connect your wallet first");
+    if (!keypair || !publicKey) {
+      toast.error("Generate a deployer wallet first");
       return;
     }
     if (!mintAddress) {
@@ -45,18 +45,18 @@ export default function TradePanel() {
       const tx = await tradeTransaction(publicKey.toBase58(), {
         action,
         mint: mintAddress,
-        // Buy: SOL amount. Sell: percentage string (e.g. "100%") or token amount
         amount: isBuy
           ? parseFloat(buyAmount) || 0
           : `${parseFloat(sellPercent) || 100}%`,
         slippage: parseFloat(slippage) || 25,
-        denominatedInSol: isBuy, // buy in SOL, sell in tokens/percentage
+        denominatedInSol: isBuy,
         priorityFee: parseFloat(priorityFee) || 0.005,
       });
 
-      const signedTx = await signTransaction(tx);
+      // Sign with deployer keypair — instant, no popup
+      tx.sign([keypair]);
       toast.info("Sending transaction...");
-      const signature = await sendSignedTransaction(signedTx);
+      const signature = await sendSignedTransaction(tx);
       setLastTx(signature);
       toast.success(`${isBuy ? "Buy" : "Sell"} successful!`);
     } catch (err: unknown) {
@@ -132,14 +132,25 @@ export default function TradePanel() {
                 />
               </div>
             </div>
-            <Button
-              size="lg"
-              className="w-full bg-green-600 hover:bg-green-700 text-white"
-              disabled={loading || !publicKey}
-              onClick={() => handleTrade("buy")}
-            >
-              {loading ? "Processing..." : !publicKey ? "Connect Wallet" : "Buy"}
-            </Button>
+            {!publicKey ? (
+              <Button
+                type="button"
+                size="lg"
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                onClick={generate}
+              >
+                Generate Wallet
+              </Button>
+            ) : (
+              <Button
+                size="lg"
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                disabled={loading}
+                onClick={() => handleTrade("buy")}
+              >
+                {loading ? "Processing..." : "Buy"}
+              </Button>
+            )}
           </TabsContent>
 
           <TabsContent value="sell" className="grid gap-4 pt-4">
@@ -196,14 +207,25 @@ export default function TradePanel() {
                 />
               </div>
             </div>
-            <Button
-              size="lg"
-              className="w-full bg-red-600 hover:bg-red-700 text-white"
-              disabled={loading || !publicKey}
-              onClick={() => handleTrade("sell")}
-            >
-              {loading ? "Processing..." : !publicKey ? "Connect Wallet" : "Sell"}
-            </Button>
+            {!publicKey ? (
+              <Button
+                type="button"
+                size="lg"
+                className="w-full bg-red-600 hover:bg-red-700 text-white"
+                onClick={generate}
+              >
+                Generate Wallet
+              </Button>
+            ) : (
+              <Button
+                size="lg"
+                className="w-full bg-red-600 hover:bg-red-700 text-white"
+                disabled={loading}
+                onClick={() => handleTrade("sell")}
+              >
+                {loading ? "Processing..." : "Sell"}
+              </Button>
+            )}
           </TabsContent>
         </Tabs>
 
