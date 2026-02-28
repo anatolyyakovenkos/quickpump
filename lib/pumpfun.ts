@@ -21,10 +21,7 @@ export interface TradeParams {
 
 export interface CreateResult {
   mint: string;
-  transactions: {
-    transaction: VersionedTransaction;
-    signers: string[];
-  }[];
+  transaction: VersionedTransaction;
   mintKeypair: Keypair;
 }
 
@@ -99,22 +96,14 @@ export async function createToken(
 
   const data = await response.json();
 
-  if (!data.mint) {
-    throw new Error("No mint address returned from API");
+  if (!data.mint || !data.transaction || !data.mintSecretKey) {
+    throw new Error("Invalid response from API — missing mint, transaction, or mintSecretKey");
   }
 
-  // Reconstruct the mint keypair from the returned secret key
   const mintKeypair = Keypair.fromSecretKey(bs58.decode(data.mintSecretKey));
+  const transaction = VersionedTransaction.deserialize(bs58.decode(data.transaction));
 
-  // Deserialize transactions
-  const transactions = (data.transactions || []).map(
-    (txInfo: { transaction: string; signers: string[] }) => ({
-      transaction: VersionedTransaction.deserialize(bs58.decode(txInfo.transaction)),
-      signers: txInfo.signers || [],
-    })
-  );
-
-  return { mint: data.mint, transactions, mintKeypair };
+  return { mint: data.mint, transaction, mintKeypair };
 }
 
 /**

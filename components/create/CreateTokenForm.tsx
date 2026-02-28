@@ -99,27 +99,15 @@ export default function CreateTokenForm() {
         initialBuy
       );
 
-      // Step 3: Sign and send each transaction
-      for (let i = 0; i < result.transactions.length; i++) {
-        const txInfo = result.transactions[i];
-        const label = result.transactions.length > 1
-          ? `(${i + 1}/${result.transactions.length})`
-          : "";
+      // Step 3: Sign with mint keypair, then wallet
+      setStep("Waiting for wallet signature...");
+      result.transaction.sign([result.mintKeypair]);
+      const signedTx = await signTransaction(result.transaction);
 
-        // Sign with mint keypair if needed
-        if (txInfo.signers.includes("mint")) {
-          txInfo.transaction.sign([result.mintKeypair]);
-        }
-
-        // Sign with wallet
-        setStep(`Waiting for wallet signature ${label}...`);
-        const signedTx = await signTransaction(txInfo.transaction);
-
-        // Send
-        setStep(`Sending transaction ${label}...`);
-        toast.info(`Sending transaction ${label}...`);
-        await sendSignedTransaction(signedTx);
-      }
+      // Step 4: Send transaction
+      setStep("Sending transaction...");
+      toast.info("Sending transaction...");
+      await sendSignedTransaction(signedTx);
 
       setCreatedMint(result.mint);
       toast.success("Token launched successfully!");
