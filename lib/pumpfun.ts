@@ -122,8 +122,12 @@ export async function buildBuyTransaction(
     amount: solAmount,
     slippage,
     priorityFee,
-    pool: "pump",
+    pool: "auto",
   });
+}
+
+export function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

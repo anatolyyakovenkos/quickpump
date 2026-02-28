@@ -20,6 +20,7 @@ import {
   createTokenTransaction,
   buildBuyTransaction,
   sendSignedTransaction,
+  delay,
 } from "@/lib/pumpfun";
 import { PUMPFUN_TOKEN_URL } from "@/lib/constants";
 
@@ -123,6 +124,10 @@ export default function CreateTokenForm() {
 
       // Step 5: If initial buy > 0, do a separate buy transaction
       if (initialBuy > 0) {
+        // Wait for the token to be indexed by PumpPortal before buying
+        setStep("Waiting for token to be indexed...");
+        await delay(5000);
+
         setStep("Building dev buy transaction...");
         toast.info("Building dev buy transaction...");
         const buyTx = await buildBuyTransaction(
