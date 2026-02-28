@@ -33,7 +33,7 @@ export default function CreateTokenForm() {
     telegram: "",
     website: "",
     initialBuy: "0",
-    slippage: "25",
+    slippage: "50",
     priorityFee: "0.005",
   });
 
@@ -162,7 +162,7 @@ export default function CreateTokenForm() {
                   telegram: "",
                   website: "",
                   initialBuy: "0",
-                  slippage: "25",
+                  slippage: "50",
                   priorityFee: "0.005",
                 });
                 setImageFile(null);
@@ -314,11 +314,14 @@ export default function CreateTokenForm() {
                 type="number"
                 step="1"
                 min="1"
-                max="50"
+                max="100"
                 value={form.slippage}
                 onChange={(e) => updateField("slippage", e.target.value)}
                 disabled={loading}
               />
+              <p className="text-xs text-muted-foreground">
+                50%+ recommended for initial buys
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="priorityFee">Priority Fee (SOL)</Label>
