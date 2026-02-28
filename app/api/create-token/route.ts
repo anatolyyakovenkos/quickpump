@@ -35,6 +35,8 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json();
+    console.log("[create-token] PumpDev response keys:", Object.keys(data));
+    console.log("[create-token] PumpDev response:", JSON.stringify(data).slice(0, 2000));
     return NextResponse.json(data);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Token creation failed";
