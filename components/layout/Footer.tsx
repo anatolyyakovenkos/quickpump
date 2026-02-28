@@ -5,7 +5,7 @@ export default function Footer() {
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
           <p className="text-sm text-muted-foreground">
             <span className="font-semibold text-green-500">Quick</span>Pump
-            &mdash; Launch tokens on pump.fun
+            &mdash; Launch tokens on pump.fun & bonk.fun
           </p>
           <div className="flex gap-6">
             <a
@@ -15,6 +15,14 @@ export default function Footer() {
               className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               pump.fun
+            </a>
+            <a
+              href="https://letsbonk.fun"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              bonk.fun
             </a>
             <a
               href="https://solana.com"

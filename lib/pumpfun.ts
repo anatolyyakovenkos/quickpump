@@ -1,5 +1,6 @@
 import { Keypair, VersionedTransaction } from "@solana/web3.js";
 import bs58 from "bs58";
+import type { Platform } from "@/lib/constants";
 
 export interface TokenMetadata {
   name: string;
@@ -26,11 +27,12 @@ export interface CreateResult {
 }
 
 /**
- * Upload token metadata + image to IPFS via pump.fun
+ * Upload token metadata + image to IPFS via pump.fun or bonk.fun
  */
 export async function uploadToIPFS(
   metadata: TokenMetadata,
-  imageFile: File
+  imageFile: File,
+  platform: Platform = "pumpfun"
 ): Promise<string> {
   const formData = new FormData();
   formData.append("file", imageFile);
@@ -41,7 +43,9 @@ export async function uploadToIPFS(
   if (metadata.telegram) formData.append("telegram", metadata.telegram);
   if (metadata.website) formData.append("website", metadata.website);
 
-  const response = await fetch("/api/ipfs", {
+  const endpoint = platform === "bonkfun" ? "/api/ipfs-bonk" : "/api/ipfs";
+
+  const response = await fetch(endpoint, {
     method: "POST",
     body: formData,
   });
@@ -59,7 +63,7 @@ export async function uploadToIPFS(
 }
 
 /**
- * Create a token via PumpDev API (uses pump.fun's new program with create_v2).
+ * Create a token via PumpDev API (pump.fun) or PumpPortal (bonk.fun/LaunchLab).
  * Supports create + initial buy in a single transaction.
  */
 export async function createToken(
@@ -67,13 +71,15 @@ export async function createToken(
   name: string,
   symbol: string,
   metadataUri: string,
-  buyAmountSol: number
+  buyAmountSol: number,
+  platform: Platform = "pumpfun"
 ): Promise<CreateResult> {
   const body: Record<string, unknown> = {
     publicKey,
     name,
     symbol,
     uri: metadataUri,
+    platform,
   };
 
   if (buyAmountSol > 0) {
@@ -111,8 +117,11 @@ export async function createToken(
  */
 export async function tradeTransaction(
   publicKey: string,
-  params: TradeParams
+  params: TradeParams,
+  platform: Platform = "pumpfun"
 ): Promise<VersionedTransaction> {
+  const pool = platform === "bonkfun" ? "launchlab" : "pump";
+
   const response = await fetch("/api/trade", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -124,7 +133,7 @@ export async function tradeTransaction(
       amount: params.amount,
       slippage: params.slippage,
       priorityFee: params.priorityFee,
-      pool: "auto",
+      pool,
     }),
   });
 

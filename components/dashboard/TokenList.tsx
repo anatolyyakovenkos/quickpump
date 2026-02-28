@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PUMPFUN_TOKEN_URL } from "@/lib/constants";
+import { PUMPFUN_TOKEN_URL, BONKFUN_TOKEN_URL } from "@/lib/constants";
 
 interface TokenInfo {
   mint: string;
@@ -109,14 +109,25 @@ export default function TokenList() {
               <Badge variant="secondary">{token.amount.toLocaleString()}</Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex gap-2">
             <a
               href={`${PUMPFUN_TOKEN_URL}/${token.mint}`}
               target="_blank"
               rel="noopener noreferrer"
+              className="flex-1"
             >
-              <Button variant="outline" size="sm" className="w-full">
-                View on pump.fun
+              <Button variant="outline" size="sm" className="w-full text-green-500 border-green-500/30 hover:border-green-500/60">
+                pump.fun
+              </Button>
+            </a>
+            <a
+              href={`${BONKFUN_TOKEN_URL}/${token.mint}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1"
+            >
+              <Button variant="outline" size="sm" className="w-full text-orange-500 border-orange-500/30 hover:border-orange-500/60">
+                bonk.fun
               </Button>
             </a>
           </CardContent>

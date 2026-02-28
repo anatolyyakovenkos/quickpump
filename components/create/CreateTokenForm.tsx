@@ -14,8 +14,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import PlatformToggle from "@/components/ui/platform-toggle";
 import { uploadToIPFS, createToken, sendSignedTransaction } from "@/lib/pumpfun";
-import { PUMPFUN_TOKEN_URL } from "@/lib/constants";
+import { getTokenUrl, getPlatformName, type Platform } from "@/lib/constants";
 
 export default function CreateTokenForm() {
   const { keypair, publicKey, generate } = useDeployer();
@@ -23,6 +24,7 @@ export default function CreateTokenForm() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState("");
   const [createdMint, setCreatedMint] = useState<string | null>(null);
+  const [platform, setPlatform] = useState<Platform>("pumpfun");
 
   const [form, setForm] = useState({
     name: "",
@@ -70,12 +72,13 @@ export default function CreateTokenForm() {
     }
 
     const initialBuy = parseFloat(form.initialBuy) || 0;
+    const platformName = getPlatformName(platform);
 
     setLoading(true);
     try {
       // Step 1: Upload metadata to IPFS
       setStep("Uploading metadata to IPFS...");
-      toast.info("Uploading metadata to IPFS...");
+      toast.info(`Uploading metadata via ${platformName}...`);
       const metadataUri = await uploadToIPFS(
         {
           name: form.name.trim(),
@@ -85,7 +88,8 @@ export default function CreateTokenForm() {
           telegram: form.telegram.trim() || undefined,
           website: form.website.trim() || undefined,
         },
-        imageFile
+        imageFile,
+        platform
       );
 
       // Step 2: Build create transaction (with dev buy included)
@@ -96,7 +100,8 @@ export default function CreateTokenForm() {
         form.name.trim(),
         form.symbol.trim().toUpperCase(),
         metadataUri,
-        initialBuy
+        initialBuy,
+        platform
       );
 
       // Step 3: Sign with mint keypair + deployer keypair — instant, no popup
@@ -120,11 +125,14 @@ export default function CreateTokenForm() {
   }
 
   if (createdMint) {
+    const platformName = getPlatformName(platform);
+    const tokenUrl = getTokenUrl(platform, createdMint);
+
     return (
       <Card className="mx-auto max-w-lg border-green-500/30">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl text-green-500">Token Created!</CardTitle>
-          <CardDescription>Your token is now live on pump.fun</CardDescription>
+          <CardDescription>Your token is now live on {platformName}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4">
           <p className="font-mono text-sm break-all text-center text-muted-foreground">
@@ -132,12 +140,12 @@ export default function CreateTokenForm() {
           </p>
           <div className="flex gap-3">
             <a
-              href={`${PUMPFUN_TOKEN_URL}/${createdMint}`}
+              href={tokenUrl}
               target="_blank"
               rel="noopener noreferrer"
             >
               <Button className="bg-green-600 hover:bg-green-700 text-white">
-                View on pump.fun
+                View on {platformName}
               </Button>
             </a>
             <Button
@@ -171,10 +179,16 @@ export default function CreateTokenForm() {
         <CardHeader>
           <CardTitle>Create a Token</CardTitle>
           <CardDescription>
-            Fill in the details below to launch your token on pump.fun
+            Fill in the details below to launch your token
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6">
+          {/* Platform selection */}
+          <div className="space-y-2">
+            <Label>Platform</Label>
+            <PlatformToggle value={platform} onChange={setPlatform} disabled={loading} />
+          </div>
+
           {/* Token basics */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">

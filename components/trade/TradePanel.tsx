@@ -15,7 +15,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import PlatformToggle from "@/components/ui/platform-toggle";
 import { tradeTransaction, sendSignedTransaction } from "@/lib/pumpfun";
+import { getPlatformName, type Platform } from "@/lib/constants";
 
 export default function TradePanel() {
   const { keypair, publicKey, generate } = useDeployer();
@@ -26,6 +28,7 @@ export default function TradePanel() {
   const [slippage, setSlippage] = useState("25");
   const [priorityFee, setPriorityFee] = useState("0.005");
   const [lastTx, setLastTx] = useState<string | null>(null);
+  const [platform, setPlatform] = useState<Platform>("pumpfun");
 
   async function handleTrade(action: "buy" | "sell") {
     if (!keypair || !publicKey) {
@@ -42,16 +45,20 @@ export default function TradePanel() {
       toast.info(`Building ${action} transaction...`);
 
       const isBuy = action === "buy";
-      const tx = await tradeTransaction(publicKey.toBase58(), {
-        action,
-        mint: mintAddress,
-        amount: isBuy
-          ? parseFloat(buyAmount) || 0
-          : `${parseFloat(sellPercent) || 100}%`,
-        slippage: parseFloat(slippage) || 25,
-        denominatedInSol: isBuy,
-        priorityFee: parseFloat(priorityFee) || 0.005,
-      });
+      const tx = await tradeTransaction(
+        publicKey.toBase58(),
+        {
+          action,
+          mint: mintAddress,
+          amount: isBuy
+            ? parseFloat(buyAmount) || 0
+            : `${parseFloat(sellPercent) || 100}%`,
+          slippage: parseFloat(slippage) || 25,
+          denominatedInSol: isBuy,
+          priorityFee: parseFloat(priorityFee) || 0.005,
+        },
+        platform
+      );
 
       // Sign with deployer keypair — instant, no popup
       tx.sign([keypair]);
@@ -67,13 +74,18 @@ export default function TradePanel() {
     }
   }
 
+  const platformName = getPlatformName(platform);
+
   return (
     <Card className="mx-auto max-w-lg">
       <CardHeader>
         <CardTitle>Trade Tokens</CardTitle>
-        <CardDescription>Buy or sell any pump.fun token</CardDescription>
+        <CardDescription>Buy or sell tokens on {platformName}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-6">
+        {/* Platform selection */}
+        <PlatformToggle value={platform} onChange={setPlatform} disabled={loading} />
+
         <div className="space-y-2">
           <Label htmlFor="mint">Token Contract Address</Label>
           <Input

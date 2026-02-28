@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
   try {
+    const t0 = Date.now();
     const body = await req.json();
 
     if (!body.publicKey) {
@@ -11,17 +12,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing name, symbol, or uri" }, { status: 400 });
     }
 
-    const response = await fetch("https://pumpdev.io/api/create", {
+    const platform = body.platform || "pumpfun";
+
+    // Strip platform from forwarded body
+    const { platform: _platform, ...forwardBody } = body;
+
+    let apiUrl: string;
+    if (platform === "bonkfun") {
+      // bonk.fun uses PumpPortal with pool: "launchlab"
+      apiUrl = "https://pumpportal.fun/api/create";
+      forwardBody.pool = "launchlab";
+      console.log("[create-token] Requesting transaction from PumpPortal (LaunchLab)...");
+    } else {
+      // pump.fun uses PumpDev
+      apiUrl = "https://pumpdev.io/api/create";
+      console.log("[create-token] Requesting transaction from PumpDev...");
+    }
+
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(forwardBody),
     });
 
     if (!response.ok) {
       const text = await response.text();
-      console.error("[create-token] PumpDev error:", response.status, text);
+      console.error("[create-token] API error:", response.status, text);
       let errorMsg = `Token creation failed (${response.status})`;
       try {
         const parsed = JSON.parse(text);
@@ -35,8 +53,7 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json();
-    console.log("[create-token] PumpDev response keys:", Object.keys(data));
-    console.log("[create-token] PumpDev response:", JSON.stringify(data).slice(0, 2000));
+    console.log(`[create-token] API responded in ${Date.now() - t0}ms, keys:`, Object.keys(data));
     return NextResponse.json(data);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Token creation failed";
