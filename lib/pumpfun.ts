@@ -1,5 +1,4 @@
 import { Keypair, VersionedTransaction } from "@solana/web3.js";
-import { getConnection } from "./solana";
 
 export interface TokenMetadata {
   name: string;
@@ -120,11 +119,23 @@ export async function tradeTransaction(
   return VersionedTransaction.deserialize(new Uint8Array(data));
 }
 
-export async function sendAndConfirmTx(
+export async function sendSignedTransaction(
   signedTx: VersionedTransaction
 ): Promise<string> {
-  const connection = getConnection();
-  const signature = await connection.sendTransaction(signedTx);
-  await connection.confirmTransaction(signature, "confirmed");
-  return signature;
+  const rawTx = signedTx.serialize();
+  const base64Tx = Buffer.from(rawTx).toString("base64");
+
+  const response = await fetch("/api/send-tx", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ transaction: base64Tx }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || "Failed to send transaction");
+  }
+
+  return data.signature;
 }

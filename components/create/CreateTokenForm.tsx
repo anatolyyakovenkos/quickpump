@@ -15,7 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { uploadToIPFS, createTokenTransaction, sendAndConfirmTx } from "@/lib/pumpfun";
+import { uploadToIPFS, createTokenTransaction, sendSignedTransaction } from "@/lib/pumpfun";
 import { PUMPFUN_TOKEN_URL } from "@/lib/constants";
 
 export default function CreateTokenForm() {
@@ -98,7 +98,7 @@ export default function CreateTokenForm() {
       const signedTx = await signTransaction(tx);
 
       toast.info("Sending transaction...");
-      const signature = await sendAndConfirmTx(signedTx);
+      const signature = await sendSignedTransaction(signedTx);
 
       setCreatedMint(mintKeypair.publicKey.toBase58());
       toast.success(`Token created! Tx: ${signature.slice(0, 8)}...`);

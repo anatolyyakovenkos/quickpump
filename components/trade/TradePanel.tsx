@@ -15,7 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { tradeTransaction, sendAndConfirmTx } from "@/lib/pumpfun";
+import { tradeTransaction, sendSignedTransaction } from "@/lib/pumpfun";
 
 export default function TradePanel() {
   const { publicKey, signTransaction } = useWallet();
@@ -50,7 +50,7 @@ export default function TradePanel() {
 
       const signedTx = await signTransaction(tx);
       toast.info("Sending transaction...");
-      const signature = await sendAndConfirmTx(signedTx);
+      const signature = await sendSignedTransaction(signedTx);
       setLastTx(signature);
       toast.success(`${action === "buy" ? "Buy" : "Sell"} successful!`);
     } catch (err: unknown) {
