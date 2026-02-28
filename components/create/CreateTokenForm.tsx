@@ -22,6 +22,7 @@ export default function CreateTokenForm() {
   const { publicKey, signTransaction } = useWallet();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState("");
   const [createdMint, setCreatedMint] = useState<string | null>(null);
 
   const [form, setForm] = useState({
@@ -32,8 +33,8 @@ export default function CreateTokenForm() {
     telegram: "",
     website: "",
     initialBuy: "0",
-    slippage: "10",
-    priorityFee: "0.0005",
+    slippage: "25",
+    priorityFee: "0.005",
   });
 
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -46,6 +47,10 @@ export default function CreateTokenForm() {
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image must be under 5MB");
+        return;
+      }
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
     }
@@ -62,41 +67,53 @@ export default function CreateTokenForm() {
       toast.error("Please upload an image");
       return;
     }
-    if (!form.name || !form.symbol) {
+    if (!form.name.trim() || !form.symbol.trim()) {
       toast.error("Name and symbol are required");
       return;
     }
 
     setLoading(true);
     try {
+      // Step 1: Upload to IPFS
+      setStep("Uploading metadata to IPFS...");
       toast.info("Uploading metadata to IPFS...");
       const metadataUri = await uploadToIPFS(
         {
-          name: form.name,
-          symbol: form.symbol,
-          description: form.description,
-          twitter: form.twitter || undefined,
-          telegram: form.telegram || undefined,
-          website: form.website || undefined,
+          name: form.name.trim(),
+          symbol: form.symbol.trim().toUpperCase(),
+          description: form.description.trim(),
+          twitter: form.twitter.trim() || undefined,
+          telegram: form.telegram.trim() || undefined,
+          website: form.website.trim() || undefined,
         },
         imageFile
       );
 
+      // Step 2: Build transaction
+      setStep("Building transaction...");
       toast.info("Building transaction...");
       const mintKeypair = Keypair.generate();
       const tx = await createTokenTransaction(
         publicKey.toBase58(),
         metadataUri,
-        { name: form.name, symbol: form.symbol, description: form.description },
+        {
+          name: form.name.trim(),
+          symbol: form.symbol.trim().toUpperCase(),
+          description: form.description.trim(),
+        },
         mintKeypair,
         parseFloat(form.initialBuy) || 0,
-        parseFloat(form.slippage) || 10,
-        parseFloat(form.priorityFee) || 0.0005
+        parseFloat(form.slippage) || 25,
+        parseFloat(form.priorityFee) || 0.005
       );
 
+      // Step 3: Sign — mint keypair signs first, then wallet
+      setStep("Waiting for wallet signature...");
       tx.sign([mintKeypair]);
       const signedTx = await signTransaction(tx);
 
+      // Step 4: Send
+      setStep("Sending transaction...");
       toast.info("Sending transaction...");
       const signature = await sendSignedTransaction(signedTx);
 
@@ -105,8 +122,10 @@ export default function CreateTokenForm() {
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Token creation failed";
       toast.error(message);
+      // Form data is preserved on error — user can retry without re-entering
     } finally {
       setLoading(false);
+      setStep("");
     }
   }
 
@@ -143,8 +162,8 @@ export default function CreateTokenForm() {
                   telegram: "",
                   website: "",
                   initialBuy: "0",
-                  slippage: "10",
-                  priorityFee: "0.0005",
+                  slippage: "25",
+                  priorityFee: "0.005",
                 });
                 setImageFile(null);
                 setImagePreview(null);
@@ -177,6 +196,7 @@ export default function CreateTokenForm() {
                 placeholder="e.g. QuickPump Token"
                 value={form.name}
                 onChange={(e) => updateField("name", e.target.value)}
+                disabled={loading}
                 required
               />
             </div>
@@ -186,7 +206,9 @@ export default function CreateTokenForm() {
                 id="symbol"
                 placeholder="e.g. QPUMP"
                 value={form.symbol}
-                onChange={(e) => updateField("symbol", e.target.value)}
+                onChange={(e) => updateField("symbol", e.target.value.toUpperCase())}
+                maxLength={10}
+                disabled={loading}
                 required
               />
             </div>
@@ -200,6 +222,7 @@ export default function CreateTokenForm() {
               rows={3}
               value={form.description}
               onChange={(e) => updateField("description", e.target.value)}
+              disabled={loading}
             />
           </div>
 
@@ -207,7 +230,7 @@ export default function CreateTokenForm() {
           <div className="space-y-2">
             <Label>Token Image *</Label>
             <div
-              className="flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-border p-6 transition-colors hover:border-green-500/50"
+              className={`flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-border p-6 transition-colors hover:border-green-500/50 ${loading ? "pointer-events-none opacity-50" : ""}`}
               onClick={() => fileInputRef.current?.click()}
             >
               {imagePreview ? (
@@ -218,7 +241,7 @@ export default function CreateTokenForm() {
                 />
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  Click to upload an image
+                  Click to upload an image (max 5MB)
                 </p>
               )}
               <input
@@ -227,6 +250,7 @@ export default function CreateTokenForm() {
                 accept="image/*"
                 className="hidden"
                 onChange={handleImageChange}
+                disabled={loading}
               />
             </div>
           </div>
@@ -240,6 +264,7 @@ export default function CreateTokenForm() {
                 placeholder="@handle"
                 value={form.twitter}
                 onChange={(e) => updateField("twitter", e.target.value)}
+                disabled={loading}
               />
             </div>
             <div className="space-y-2">
@@ -249,6 +274,7 @@ export default function CreateTokenForm() {
                 placeholder="t.me/group"
                 value={form.telegram}
                 onChange={(e) => updateField("telegram", e.target.value)}
+                disabled={loading}
               />
             </div>
             <div className="space-y-2">
@@ -258,6 +284,7 @@ export default function CreateTokenForm() {
                 placeholder="https://..."
                 value={form.website}
                 onChange={(e) => updateField("website", e.target.value)}
+                disabled={loading}
               />
             </div>
           </div>
@@ -274,7 +301,11 @@ export default function CreateTokenForm() {
                 placeholder="0"
                 value={form.initialBuy}
                 onChange={(e) => updateField("initialBuy", e.target.value)}
+                disabled={loading}
               />
+              <p className="text-xs text-muted-foreground">
+                0 = no dev buy
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="slippage">Slippage (%)</Label>
@@ -286,6 +317,7 @@ export default function CreateTokenForm() {
                 max="50"
                 value={form.slippage}
                 onChange={(e) => updateField("slippage", e.target.value)}
+                disabled={loading}
               />
             </div>
             <div className="space-y-2">
@@ -293,10 +325,11 @@ export default function CreateTokenForm() {
               <Input
                 id="priorityFee"
                 type="number"
-                step="0.0001"
+                step="0.001"
                 min="0"
                 value={form.priorityFee}
                 onChange={(e) => updateField("priorityFee", e.target.value)}
+                disabled={loading}
               />
             </div>
           </div>
@@ -308,7 +341,7 @@ export default function CreateTokenForm() {
             disabled={loading || !publicKey}
           >
             {loading
-              ? "Creating..."
+              ? step || "Creating..."
               : !publicKey
                 ? "Connect Wallet to Create"
                 : "Create Token"}

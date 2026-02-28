@@ -21,9 +21,10 @@ export default function TradePanel() {
   const { publicKey, signTransaction } = useWallet();
   const [loading, setLoading] = useState(false);
   const [mintAddress, setMintAddress] = useState("");
-  const [amount, setAmount] = useState("0.1");
-  const [slippage, setSlippage] = useState("10");
-  const [priorityFee, setPriorityFee] = useState("0.0005");
+  const [buyAmount, setBuyAmount] = useState("0.1");
+  const [sellPercent, setSellPercent] = useState("100");
+  const [slippage, setSlippage] = useState("25");
+  const [priorityFee, setPriorityFee] = useState("0.005");
   const [lastTx, setLastTx] = useState<string | null>(null);
 
   async function handleTrade(action: "buy" | "sell") {
@@ -39,20 +40,25 @@ export default function TradePanel() {
     setLoading(true);
     try {
       toast.info(`Building ${action} transaction...`);
+
+      const isBuy = action === "buy";
       const tx = await tradeTransaction(publicKey.toBase58(), {
         action,
         mint: mintAddress,
-        amount: parseFloat(amount) || 0,
-        slippage: parseFloat(slippage) || 10,
-        denominatedInSol: true,
-        priorityFee: parseFloat(priorityFee) || 0.0005,
+        // Buy: SOL amount. Sell: percentage string (e.g. "100%") or token amount
+        amount: isBuy
+          ? parseFloat(buyAmount) || 0
+          : `${parseFloat(sellPercent) || 100}%`,
+        slippage: parseFloat(slippage) || 25,
+        denominatedInSol: isBuy, // buy in SOL, sell in tokens/percentage
+        priorityFee: parseFloat(priorityFee) || 0.005,
       });
 
       const signedTx = await signTransaction(tx);
       toast.info("Sending transaction...");
       const signature = await sendSignedTransaction(signedTx);
       setLastTx(signature);
-      toast.success(`${action === "buy" ? "Buy" : "Sell"} successful!`);
+      toast.success(`${isBuy ? "Buy" : "Sell"} successful!`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Transaction failed";
       toast.error(message);
@@ -75,7 +81,7 @@ export default function TradePanel() {
             placeholder="Enter mint address..."
             className="font-mono text-sm"
             value={mintAddress}
-            onChange={(e) => setMintAddress(e.target.value)}
+            onChange={(e) => setMintAddress(e.target.value.trim())}
           />
         </div>
 
@@ -96,9 +102,9 @@ export default function TradePanel() {
                 id="buy-amount"
                 type="number"
                 step="0.01"
-                min="0"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                min="0.001"
+                value={buyAmount}
+                onChange={(e) => setBuyAmount(e.target.value)}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -115,11 +121,11 @@ export default function TradePanel() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="buy-fee">Priority Fee</Label>
+                <Label htmlFor="buy-fee">Priority Fee (SOL)</Label>
                 <Input
                   id="buy-fee"
                   type="number"
-                  step="0.0001"
+                  step="0.001"
                   min="0"
                   value={priorityFee}
                   onChange={(e) => setPriorityFee(e.target.value)}
@@ -138,15 +144,32 @@ export default function TradePanel() {
 
           <TabsContent value="sell" className="grid gap-4 pt-4">
             <div className="space-y-2">
-              <Label htmlFor="sell-amount">Amount (SOL)</Label>
-              <Input
-                id="sell-amount"
-                type="number"
-                step="0.01"
-                min="0"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
+              <Label htmlFor="sell-percent">Sell Percentage (%)</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="sell-percent"
+                  type="number"
+                  step="1"
+                  min="1"
+                  max="100"
+                  value={sellPercent}
+                  onChange={(e) => setSellPercent(e.target.value)}
+                />
+                <div className="flex gap-1">
+                  {["25", "50", "100"].map((pct) => (
+                    <Button
+                      key={pct}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className={`text-xs ${sellPercent === pct ? "border-green-500 text-green-500" : ""}`}
+                      onClick={() => setSellPercent(pct)}
+                    >
+                      {pct}%
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -162,11 +185,11 @@ export default function TradePanel() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="sell-fee">Priority Fee</Label>
+                <Label htmlFor="sell-fee">Priority Fee (SOL)</Label>
                 <Input
                   id="sell-fee"
                   type="number"
-                  step="0.0001"
+                  step="0.001"
                   min="0"
                   value={priorityFee}
                   onChange={(e) => setPriorityFee(e.target.value)}

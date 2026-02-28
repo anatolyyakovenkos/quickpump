@@ -9,23 +9,18 @@ export interface TokenMetadata {
   website?: string;
 }
 
-export interface CreateTokenParams {
-  metadata: TokenMetadata;
-  imageFile: File;
-  initialBuyAmount: number;
-  slippage: number;
-  priorityFee: number;
-}
-
 export interface TradeParams {
   action: "buy" | "sell";
   mint: string;
-  amount: number;
+  amount: number | string; // number for buy, number or "100%" for sell
   slippage: number;
   denominatedInSol: boolean;
   priorityFee: number;
 }
 
+/**
+ * Upload token metadata + image to IPFS via pump.fun
+ */
 export async function uploadToIPFS(
   metadata: TokenMetadata,
   imageFile: File
@@ -46,13 +41,19 @@ export async function uploadToIPFS(
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
-    throw new Error(err.error || `IPFS upload failed: ${response.statusText}`);
+    throw new Error(err.error || `IPFS upload failed (${response.status})`);
   }
 
   const data = await response.json();
+  if (!data.metadataUri) {
+    throw new Error("IPFS upload succeeded but no metadata URI was returned");
+  }
   return data.metadataUri;
 }
 
+/**
+ * Build a create-token transaction via PumpPortal
+ */
 export async function createTokenTransaction(
   publicKey: string,
   metadataUri: string,
@@ -82,15 +83,28 @@ export async function createTokenTransaction(
     }),
   });
 
+  // Check for JSON error responses first
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    const err = await response.json();
+    throw new Error(err.error || `Transaction creation failed (${response.status})`);
+  }
+
   if (response.status !== 200) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.error || `Transaction creation failed: ${response.statusText}`);
+    throw new Error(`Transaction creation failed (${response.status})`);
   }
 
   const data = await response.arrayBuffer();
+  if (data.byteLength === 0) {
+    throw new Error("Received empty transaction from PumpPortal");
+  }
+
   return VersionedTransaction.deserialize(new Uint8Array(data));
 }
 
+/**
+ * Build a buy/sell transaction via PumpPortal
+ */
 export async function tradeTransaction(
   publicKey: string,
   params: TradeParams
@@ -110,20 +124,38 @@ export async function tradeTransaction(
     }),
   });
 
+  // Check for JSON error responses first
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    const err = await response.json();
+    throw new Error(err.error || `Trade transaction failed (${response.status})`);
+  }
+
   if (response.status !== 200) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.error || `Trade transaction failed: ${response.statusText}`);
+    throw new Error(`Trade transaction failed (${response.status})`);
   }
 
   const data = await response.arrayBuffer();
+  if (data.byteLength === 0) {
+    throw new Error("Received empty transaction from PumpPortal");
+  }
+
   return VersionedTransaction.deserialize(new Uint8Array(data));
 }
 
+/**
+ * Send a signed transaction to Solana via our server-side proxy
+ */
 export async function sendSignedTransaction(
   signedTx: VersionedTransaction
 ): Promise<string> {
   const rawTx = signedTx.serialize();
-  const base64Tx = Buffer.from(rawTx).toString("base64");
+
+  // Use btoa for browser compatibility instead of Buffer
+  const base64Tx =
+    typeof Buffer !== "undefined"
+      ? Buffer.from(rawTx).toString("base64")
+      : btoa(String.fromCharCode(...rawTx));
 
   const response = await fetch("/api/send-tx", {
     method: "POST",
@@ -135,6 +167,10 @@ export async function sendSignedTransaction(
 
   if (!response.ok) {
     throw new Error(data.error || "Failed to send transaction");
+  }
+
+  if (!data.signature) {
+    throw new Error("Transaction sent but no signature returned");
   }
 
   return data.signature;
